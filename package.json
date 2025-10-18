@@ -1,0 +1,25 @@
+{
+  "name": "dogpose",
+  "version": "1.0.0",
+  "description": "## Overview This project is a real-time dog fitness and analysis platform that addresses high latency issues in current AI pose analysis systems. It implements a client-centric hybrid architecture where AI inference moves to the user's browser, eliminating network round-trip time and providing a true real-time experience for dog fitness tracking and analysis.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "framer-motion": "^12.23.24",
+    "react-webcam": "^7.2.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
+  }
+}
