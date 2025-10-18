@@ -162,7 +162,7 @@ const OnboardingFlow = ({ onComplete }) => {
           width: '100%', 
           height: '100%', 
           transform: 'scaleX(-1)',
-          objectFit: 'cover',
+          objectFit: 'contain',
           zIndex: 0, // 비디오는 맨 뒤에 위치
         }} 
       />

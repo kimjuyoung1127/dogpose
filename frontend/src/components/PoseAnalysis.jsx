@@ -66,6 +66,7 @@ const PoseAnalysisComponent = ({ modelPath, videoRef, canvasRef, onAnalysisCompl
         // Run inference
         const feeds = { images: input };
         const results = await session.run(feeds);
+        console.log("AI Model Raw Output:", results); // Log the raw output
         
         // Post-process the results
         const keypoints = postprocess(results, newWidth, newHeight, padX, padY, video.videoWidth, video.videoHeight);
@@ -149,58 +150,36 @@ function preprocess(video) {
  * @returns {Array<Array<{x: number, y: number, confidence: number}>>}
  */
 function postprocess(results, newWidth, newHeight, padX, padY, originalWidth, originalHeight) {
-    // Try to get the output tensor - different YOLO models may have different output names
-    // Common output name for YOLOv8 pose model is 'output0' or 'outputs'
-    let outputTensor = results.output0; // Standard ONNX output name
-    
-    if (!outputTensor) {
-        console.error("Could not find the expected output tensor. Available keys:", Object.keys(results));
-        return [];
-    }
-    
+    const outputTensor = results.output0;
+    if (!outputTensor) { return []; }
+
     const data = outputTensor.data;
-    const dimensions = outputTensor.dims; // Common format is [1, 51, 8400] for 17 keypoints (x,y,conf for each)
-
-    if (dimensions.length < 3) {
-        console.error("Unexpected output dimensions:", dimensions);
-        return [];
-    }
-
-    const numPredictions = dimensions[2]; // Number of anchor points or grid cells
-    const numProps = dimensions[1]; // Number of properties per prediction (17*3 for keypoints + bbox info)
-    const numKeypoints = 17; // Standard COCO pose keypoints
+    const dims = outputTensor.dims; // [1, 77, 8400]
+    const numPredictions = dims[2]; // 8400
     const predictions = [];
+    const numKeypoints = 24;        // 77 = bbox(4) + obj_conf(1) + keypoints(24*3)
 
-    // Process each prediction location
     for (let i = 0; i < numPredictions; i++) {
-        // Calculate max confidence among keypoints for this prediction
-        let maxConfidence = 0;
-        for (let j = 0; j < numKeypoints; j++) {
-            // For each keypoint, confidence is typically the 3rd value (x, y, conf)
-            // Keypoints usually follow [bbox_info..., kp1_x, kp1_y, kp1_conf, kp2_x, kp2_y, kp2_conf, ...]
-            const bboxInfoCount = 4; // x, y, width, height
-            const keypointConfidence = data[(j * 3) + bboxInfoCount + 2 + (i * numProps)];
-            if (keypointConfidence > maxConfidence) {
-                maxConfidence = keypointConfidence;
-            }
-        }
+        // Transposed 데이터 접근 방식: i번째 예측의 5번째 속성(객체 신뢰도)을 가져옵니다.
+        const classConfidence = data[i + 4 * numPredictions]; 
 
-        // Only consider predictions with sufficient confidence
-        if (maxConfidence > 0.5) {
+        if (classConfidence > 0.8) { // 임계값은 0.6으로 약간 높여 안정성 확보
             const dogKeypoints = [];
             for (let j = 0; j < numKeypoints; j++) {
-                const bboxInfoCount = 4; // x, y, width, height
-                const x = data[(j * 3) + bboxInfoCount + 0 + (i * numProps)];
-                const y = data[(j * 3) + bboxInfoCount + 1 + (i * numProps)];
-                const confidence = data[(j * 3) + bboxInfoCount + 2 + (i * numProps)];
+                // keypoint 데이터는 5번 인덱스부터 시작합니다.
+                const offset = 5 + j * 3;
+                
+                // Transposed 데이터 접근: data[i + 속성_인덱스 * 예측_개수]
+                const x = data[i + (offset + 0) * numPredictions];
+                const y = data[i + (offset + 1) * numPredictions];
+                const confidence = data[i + (offset + 2) * numPredictions];
 
-                // Scale coordinates back to the original video size
                 const originalX = ((x - padX) / newWidth) * originalWidth;
                 const originalY = ((y - padY) / newHeight) * originalHeight;
 
                 dogKeypoints.push({ x: originalX, y: originalY, confidence });
             }
-            predictions.push({ keypoints: dogKeypoints, confidence: maxConfidence });
+            predictions.push({ keypoints: dogKeypoints, confidence: classConfidence });
         }
     }
 
@@ -208,10 +187,8 @@ function postprocess(results, newWidth, newHeight, padX, padY, originalWidth, or
         return [];
     }
 
-    // Sort by confidence to find the most likely detection
+    // 가장 신뢰도 높은 예측 결과 하나만 선택합니다.
     predictions.sort((a, b) => b.confidence - a.confidence);
-    
-    // Return the keypoints for the single best detection
     return [predictions[0].keypoints];
 }
 
@@ -284,66 +261,64 @@ function calculateSpineCurvature(keypointsData) {
  * @param {number} height 
  */
 function drawSkeleton(ctx, keypoints, video, canvas) {
-  // 1. 캔버스의 실제 크기와 드로잉 해상도를 일치시킵니다 (왜곡 방지).
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const videoRatio = video.videoWidth / video.videoHeight;
+    const canvasRatio = canvas.width / canvas.height;
+    let scale = 1, offsetX = 0, offsetY = 0;
 
-  // 2. 비디오와 캔버스의 비율을 계산하여 스케일 및 오프셋을 결정합니다.
-  //    (object-fit: cover 와 동일한 효과)
-  const videoRatio = video.videoWidth / video.videoHeight;
-  const canvasRatio = canvas.width / canvas.height;
-  let scale = 1;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (videoRatio > canvasRatio) { // 비디오가 캔버스보다 가로로 넓은 경우
-    scale = canvas.height / video.videoHeight;
-    offsetX = (canvas.width - video.videoWidth * scale) / 2;
-  } else { // 비디오가 캔버스보다 세로로 길거나 같은 경우
-    scale = canvas.width / video.videoWidth;
-    offsetY = (canvas.height - video.videoHeight * scale) / 2;
-  }
-
-  const connections = [
-    [0, 1], [0, 2], [1, 3], [2, 4], // Head
-    [5, 6], [5, 7], [7, 9], [6, 8], [8, 10], // Body and front legs
-    [11, 12], [11, 13], [13, 15], [12, 14], [14, 16] // Hips and back legs
-  ];
-
-  for (const dog of keypoints) {
-    // 3. 스케일과 오프셋을 적용하여 점을 그립니다.
-    ctx.fillStyle = '#FF0000';
-    for (const point of dog) {
-      if (point.confidence > 0.5) {
-        const scaledX = point.x * scale + offsetX;
-        const scaledY = point.y * scale + offsetY;
-        ctx.beginPath();
-        ctx.arc(scaledX, scaledY, 5, 0, 2 * Math.PI);
-        ctx.fill();
-      }
+    if (videoRatio > canvasRatio) {
+        scale = canvas.height / video.videoHeight;
+        offsetX = (canvas.width - video.videoWidth * scale) / 2;
+    } else {
+        scale = canvas.width / video.videoWidth;
+        offsetY = (canvas.height - video.videoHeight * scale) / 2;
     }
 
-    // 4. 스케일과 오프셋을 적용하여 선을 그립니다.
-    ctx.strokeStyle = '#00FF00';
-    ctx.lineWidth = 3;
-    for (const [start, end] of connections) {
-      const startPoint = dog[start];
-      const endPoint = dog[end];
-      if (startPoint && endPoint && startPoint.confidence > 0.5 && endPoint.confidence > 0.5) {
-        const startX = startPoint.x * scale + offsetX;
-        const startY = startPoint.y * scale + offsetY;
-        const endX = endPoint.x * scale + offsetX;
-        const endY = endPoint.y * scale + offsetY;
+    // ★★★ 24개 관절에 대한 연결 정보 (추정) ★★★
+    // 이 순서는 모델마다 다를 수 있으므로, 결과가 이상하면 이 배열의 숫자를 바꿔보며 테스트해야 합니다.
+    const connections = [
+        [0, 1], [0, 2], [1, 3], [2, 4],   // 머리 (0:코, 1:왼쪽눈, 2:오른쪽눈, 3:왼쪽귀, 4:오른쪽귀)
+        [5, 6], [11, 12], [5, 11], [6, 12], // 몸통 (5:왼쪽어깨, 6:오른쪽어깨, 11:왼쪽엉덩이, 12:오른쪽엉덩이)
+        [5, 7], [7, 9], [9, 21],          // 왼 앞다리 (7:팔꿈치, 9:손목, 21:발)
+        [6, 8], [8, 10], [10, 22],         // 오른 앞다리
+        [11, 13], [13, 15], [15, 17],      // 왼 뒷다리 (13:무릎, 15:발목, 17:발)
+        [12, 14], [14, 16], [16, 18],      // 오른 뒷다리
+        [11, 19], [12, 19]                // 꼬리 시작점 (19번 관절 추정)
+    ];
+
+    for (const dog of keypoints) {
+        // 점 그리기 (Keypoints)
+        ctx.fillStyle = '#FF00FF';
+        dog.forEach(point => {
+            if (point.confidence > 0.5) {
+                const scaledX = point.x * scale + offsetX;
+                const scaledY = point.y * scale + offsetY;
+                ctx.beginPath();
+                ctx.arc(scaledX, scaledY, 5, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        });
         
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.stroke();
-      }
+        // 선 그리기 (Connections)
+        ctx.strokeStyle = '#00FF00';
+        ctx.lineWidth = 3;
+        connections.forEach(([start, end]) => {
+            if (dog[start] && dog[end] && dog[start].confidence > 0.5 && dog[end].confidence > 0.5) {
+                const startX = dog[start].x * scale + offsetX;
+                const startY = dog[start].y * scale + offsetY;
+                const endX = dog[end].x * scale + offsetX;
+                const endY = dog[end].y * scale + offsetY;
+                
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+        });
     }
-  }
 }
 
 export default PoseAnalysisComponent;
