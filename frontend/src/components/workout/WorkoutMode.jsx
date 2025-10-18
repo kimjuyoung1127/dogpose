@@ -13,7 +13,7 @@ const WorkoutMode = ({ exercise, onComplete, videoRef, canvasRef }) => {
   const [criticalErrors, setCriticalErrors] = useState([]);
   const [progress, setProgress] = useState(0);
   const intervalRef = useRef(null);
-  
+
   // Set target reps based on exercise
   useEffect(() => {
     if (exercise) {
@@ -56,13 +56,13 @@ const WorkoutMode = ({ exercise, onComplete, videoRef, canvasRef }) => {
         { message: '오른쪽 다리를 더 앞으로!', type: 'correction' },
         { message: '안정적인 자세네요', type: 'positive' }
       ];
-      
+
       const randomFeedback = feedbacks[Math.floor(Math.random() * feedbacks.length)];
       setFeedbackMessage(randomFeedback.message);
-      
+
       // Set accuracy based on feedback type
       setPoseAccuracy(randomFeedback.type === 'positive' ? 90 + Math.random() * 10 : 70 + Math.random() * 20);
-      
+
       // Simulate critical errors occasionally
       if (randomFeedback.type === 'correction' && Math.random() > 0.7) {
         setCriticalErrors([{
@@ -86,7 +86,7 @@ const WorkoutMode = ({ exercise, onComplete, videoRef, canvasRef }) => {
           setProgress((currentReps + 1) / targetReps * 100);
         }
       }, 3000);
-      
+
       return () => clearInterval(repInterval);
     }
   }, [currentReps, targetReps]);
@@ -96,11 +96,11 @@ const WorkoutMode = ({ exercise, onComplete, videoRef, canvasRef }) => {
   };
 
   const endWorkout = () => {
-    onComplete({ 
-      reps: currentReps, 
-      time: elapsedTime, 
+    onComplete({
+      reps: currentReps,
+      time: elapsedTime,
       accuracy: poseAccuracy,
-      exercise: exercise 
+      exercise: exercise
     });
   };
 
@@ -110,9 +110,9 @@ const WorkoutMode = ({ exercise, onComplete, videoRef, canvasRef }) => {
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-black text-white overflow-hidden">
-      {/* Video Section - 75% of screen */}
-      <div className="relative w-full h-[75vh]">
+    <div className="relative h-screen w-full overflow-hidden">
+      {/* Video Section */}
+      <div className="relative w-full h-full">
         <VideoFeed poseAccuracy={poseAccuracy} videoRef={videoRef} canvasRef={canvasRef} />
         <FeedbackLayer
           poseAccuracy={poseAccuracy}
@@ -123,9 +123,9 @@ const WorkoutMode = ({ exercise, onComplete, videoRef, canvasRef }) => {
           progress={progress}
         />
       </div>
-      
-      {/* Control Panel - 25% of screen */}
-      <ControlPanel 
+
+      {/* Control Panel */}
+      <ControlPanel
         elapsedTime={elapsedTime}
         exercise={exercise}
         isPaused={isPaused}

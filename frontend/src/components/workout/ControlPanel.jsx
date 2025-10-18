@@ -6,12 +6,12 @@ const formatTime = (seconds) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
-const ControlPanel = ({ 
-  elapsedTime, 
-  exercise, 
-  isPaused, 
-  togglePause, 
-  skipExercise, 
+const ControlPanel = ({
+  elapsedTime,
+  exercise,
+  isPaused,
+  togglePause,
+  skipExercise,
   endWorkout,
   criticalErrors,
   setCriticalErrors
@@ -19,13 +19,13 @@ const ControlPanel = ({
   const shouldShowSkipModal = criticalErrors.some(error => error.message.includes('운동을 건너뛰었'));
 
   return (
-    <div className="w-full h-[25vh] bg-gray-900 p-4 flex flex-col items-center justify-between">
+    <div className="absolute bottom-0 left-0 right-0 h-[20vh] bg-black bg-opacity-50 backdrop-blur-md p-4 flex flex-col items-center justify-between rounded-t-2xl">
       <div className="w-full flex justify-between items-center">
         {/* Timer */}
         <div className="text-3xl font-bold">
           {formatTime(elapsedTime)}
         </div>
-        
+
         {/* Next Exercise Preview */}
         <div className="text-center">
           <div className="text-sm text-gray-400">다음 동작</div>
@@ -34,31 +34,31 @@ const ControlPanel = ({
           </div>
         </div>
       </div>
-      
+
       {/* Action Buttons */}
       <div className="flex justify-center space-x-8">
         <button
-          className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center text-2xl"
+          className="w-16 h-16 rounded-full bg-gray-700 bg-opacity-70 flex items-center justify-center text-2xl"
           onClick={skipExercise}
         >
           ⏭️
         </button>
-        
+
         <button
           className="w-20 h-20 rounded-full bg-gradient-to-r from-[#F9A826] to-[#34D399] flex items-center justify-center text-3xl"
           onClick={togglePause}
         >
           {isPaused ? '▶️' : '⏸️'}
         </button>
-        
+
         <button
-          className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center text-2xl"
+          className="w-16 h-16 rounded-full bg-red-600 bg-opacity-70 flex items-center justify-center text-2xl"
           onClick={endWorkout}
         >
           ❌
         </button>
       </div>
-      
+
       {/* Skip Confirmation Modal */}
       {shouldShowSkipModal && (
         <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-20">
