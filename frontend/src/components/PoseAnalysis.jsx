@@ -50,11 +50,16 @@ const PoseAnalysisComponent = ({ modelPath, videoRef, canvasRef, onAnalysisCompl
       let allKeypoints = [];
 
       const runAnalysis = async () => {
-        if (video.readyState < 2) {
+        // 1. Always check the latest videoRef.current
+        if (!videoRef.current || videoRef.current.readyState < 3) {
           animationFrameId.current = requestAnimationFrame(runAnalysis);
           return;
         }
 
+        // 2. Get the latest video information right after the check (this is the key change!)
+        const video = videoRef.current;
+
+        // 3. Now 'preprocess' function will always use the latest video information
         // Pre-process the frame
         const { input, newWidth, newHeight, padX, padY } = preprocess(video);
 
@@ -138,34 +143,76 @@ function preprocess(video) {
 }
 
 /**
- * Post-processes the model output to extract keypoints.
+ * Post-processes the YOLOv8-pose model output to extract keypoints.
+ * This version correctly handles the transposed output tensor.
  * @param {ort.Tensor} results 
  * @returns {Array<Array<{x: number, y: number, confidence: number}>>}
  */
 function postprocess(results, newWidth, newHeight, padX, padY, originalWidth, originalHeight) {
-    const data = results.output0.data;
-    const keypoints = [];
-    const numKeypoints = 17; // For YOLOv8-pose
-    const numElements = 4; // x, y, confidence, class
-
-    for (let i = 0; i < data.length; i += numKeypoints * numElements) {
-        const dogKeypoints = [];
-        let isValid = true;
-        for (let j = 0; j < numKeypoints; j++) {
-            const x = data[i + j * numElements];
-            const y = data[i + j * numElements + 1];
-            const confidence = data[i + j * numElements + 2];
-
-            // Scale back to original video dimensions
-            const originalX = ((x - padX) / newWidth) * originalWidth;
-            const originalY = ((y - padY) / newHeight) * originalHeight;
-
-            dogKeypoints.push({ x: originalX, y: originalY, confidence });
-            if(confidence < 0.5) isValid = false; // Threshold
-        }
-        if(isValid) keypoints.push(dogKeypoints);
+    // Try to get the output tensor - different YOLO models may have different output names
+    // Common output name for YOLOv8 pose model is 'output0' or 'outputs'
+    let outputTensor = results.output0; // Standard ONNX output name
+    
+    if (!outputTensor) {
+        console.error("Could not find the expected output tensor. Available keys:", Object.keys(results));
+        return [];
     }
-    return keypoints;
+    
+    const data = outputTensor.data;
+    const dimensions = outputTensor.dims; // Common format is [1, 51, 8400] for 17 keypoints (x,y,conf for each)
+
+    if (dimensions.length < 3) {
+        console.error("Unexpected output dimensions:", dimensions);
+        return [];
+    }
+
+    const numPredictions = dimensions[2]; // Number of anchor points or grid cells
+    const numProps = dimensions[1]; // Number of properties per prediction (17*3 for keypoints + bbox info)
+    const numKeypoints = 17; // Standard COCO pose keypoints
+    const predictions = [];
+
+    // Process each prediction location
+    for (let i = 0; i < numPredictions; i++) {
+        // Calculate max confidence among keypoints for this prediction
+        let maxConfidence = 0;
+        for (let j = 0; j < numKeypoints; j++) {
+            // For each keypoint, confidence is typically the 3rd value (x, y, conf)
+            // Keypoints usually follow [bbox_info..., kp1_x, kp1_y, kp1_conf, kp2_x, kp2_y, kp2_conf, ...]
+            const bboxInfoCount = 4; // x, y, width, height
+            const keypointConfidence = data[(j * 3) + bboxInfoCount + 2 + (i * numProps)];
+            if (keypointConfidence > maxConfidence) {
+                maxConfidence = keypointConfidence;
+            }
+        }
+
+        // Only consider predictions with sufficient confidence
+        if (maxConfidence > 0.5) {
+            const dogKeypoints = [];
+            for (let j = 0; j < numKeypoints; j++) {
+                const bboxInfoCount = 4; // x, y, width, height
+                const x = data[(j * 3) + bboxInfoCount + 0 + (i * numProps)];
+                const y = data[(j * 3) + bboxInfoCount + 1 + (i * numProps)];
+                const confidence = data[(j * 3) + bboxInfoCount + 2 + (i * numProps)];
+
+                // Scale coordinates back to the original video size
+                const originalX = ((x - padX) / newWidth) * originalWidth;
+                const originalY = ((y - padY) / newHeight) * originalHeight;
+
+                dogKeypoints.push({ x: originalX, y: originalY, confidence });
+            }
+            predictions.push({ keypoints: dogKeypoints, confidence: maxConfidence });
+        }
+    }
+
+    if (predictions.length === 0) {
+        return [];
+    }
+
+    // Sort by confidence to find the most likely detection
+    predictions.sort((a, b) => b.confidence - a.confidence);
+    
+    // Return the keypoints for the single best detection
+    return [predictions[0].keypoints];
 }
 
 

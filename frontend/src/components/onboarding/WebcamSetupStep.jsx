@@ -1,34 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import Webcam from 'react-webcam';
+import React, { useEffect } from 'react';
 
 const WebcamSetupStep = ({ onNext, onPrev, cameraPermission, setCameraPermission, videoRef }) => {
-  // Check camera permissions when component mounts
-  useEffect(() => {
-    const checkPermissions = async () => {
-      try {
-        const permissionStatus = await navigator.permissions.query({ name: 'camera' });
-        if (permissionStatus.state === 'granted') {
-          setCameraPermission('granted');
-        } else if (permissionStatus.state === 'prompt') {
-          // Request permission
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream.getTracks().forEach(track => track.stop());
-          setCameraPermission('granted');
-        } else {
-          setCameraPermission('denied');
-        }
-      } catch (err) {
-        console.error('Error accessing camera:', err);
-        setCameraPermission('denied');
-      }
-    };
-
-    checkPermissions();
-  }, []);
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 to-black text-white p-4">
-      <div className="text-center max-w-2xl">
+    <div className="flex flex-col items-center justify-center min-h-screen text-white p-4">
+      <div className="text-center max-w-2xl bg-black bg-opacity-50 p-8 rounded-lg">
         <div className="text-8xl mb-8 animate-pulse">🐶</div>
         
         <h2 className="text-3xl md:text-4xl font-bold mb-6">뭉치를 화면에 넣어주세요</h2>
@@ -50,16 +25,19 @@ const WebcamSetupStep = ({ onNext, onPrev, cameraPermission, setCameraPermission
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <div className="w-64 h-64 bg-gray-700 rounded-xl overflow-hidden border-4 border-dashed border-blue-500 flex items-center justify-center mb-4">
+              <div className="w-64 h-64 bg-gray-700 rounded-xl overflow-hidden border-4 border-dashed border-blue-500 flex items-center justify-center mb-4 relative">
+                {/* Video stream is now handled by parent, show visual indication */}
                 {cameraPermission === 'granted' ? (
-                  <Webcam
-                    audio={false}
-                    screenshotFormat="image/jpeg"
-                    className="w-full h-full object-cover"
-                    ref={videoRef}
-                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+                    <div className="text-center text-white text-sm">
+                      <div className="text-2xl mb-2">📷</div>
+                      <p>카메라 연결됨</p>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-gray-400">카메라 접근 요청 중...</div>
+                  <div className="text-gray-400">
+                    카메라 접근을 기다리는 중...
+                  </div>
                 )}
               </div>
               

@@ -35,8 +35,8 @@ const ExerciseSelectionStep = ({ onNext, onPrev, onComplete }) => {
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 to-black text-white p-4">
-      <div className="text-center max-w-4xl w-full">
+    <div className="flex flex-col items-center justify-center min-h-screen text-white p-4">
+      <div className="text-center max-w-4xl w-full bg-black bg-opacity-30 p-8 rounded-lg">
         <h2 className="text-3xl md:text-4xl font-bold mb-8">첫 운동을 선택해보세요!</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
