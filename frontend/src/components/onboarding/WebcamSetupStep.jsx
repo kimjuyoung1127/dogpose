@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 
-const WebcamSetupStep = ({ onNext, onPrev, cameraPermission, setCameraPermission, videoRef }) => {
+const WebcamSetupStep = ({ onNext, onPrev, cameraPermission, setCameraPermission, videoRef, onUploadClick }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen text-white p-4">
       <div className="text-center max-w-2xl bg-black bg-opacity-50 p-8 rounded-lg">
@@ -56,6 +56,12 @@ const WebcamSetupStep = ({ onNext, onPrev, cameraPermission, setCameraPermission
             onClick={onPrev}
           >
             이전
+          </button>
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full text-lg"
+            onClick={onUploadClick}
+          >
+            영상 업로드
           </button>
           <button
             className={`font-bold py-3 px-8 rounded-full text-lg ${

@@ -4,18 +4,32 @@ import SkeletonDetectionStep from './SkeletonDetectionStep';
 import ExerciseSelectionStep from './ExerciseSelectionStep';
 import PoseAnalysisComponent from '../PoseAnalysis';
 
+import DebugUpload from '../debug/DebugUpload';
+
 const OnboardingFlow = ({ onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [cameraPermission, setCameraPermission] = useState(null);
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [isVideoUploaded, setIsVideoUploaded] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const debugUploadRef = useRef(null);
+
+  const handleUploadClick = () => {
+    if (debugUploadRef.current) {
+      debugUploadRef.current.click();
+    }
+  };
+
+  const isDevMode = new URLSearchParams(window.location.search).get('dev') === 'true';
 
   // Effect to handle webcam stream
   useEffect(() => {
+    if (isVideoUploaded) return; // Don't get webcam if a video is uploaded
+
     let stream = null;
 
     const getWebcam = async () => {
@@ -66,7 +80,7 @@ const OnboardingFlow = ({ onComplete }) => {
         tracks.forEach(track => track.stop());
       }
     };
-  }, [currentStep]);
+  }, [currentStep, isVideoUploaded]);
 
   useEffect(() => {
     // Activate analysis only on the skeleton detection step
@@ -104,6 +118,7 @@ const OnboardingFlow = ({ onComplete }) => {
             cameraPermission={cameraPermission}
             setCameraPermission={setCameraPermission}
             videoRef={videoRef}
+            onUploadClick={handleUploadClick}
           />
         );
       case 2:
@@ -168,6 +183,9 @@ const OnboardingFlow = ({ onComplete }) => {
         {renderStep()}
       </div>
       
+      {/* Dev mode file upload */}
+      <DebugUpload ref={debugUploadRef} videoRef={videoRef} setCameraPermission={setCameraPermission} onVideoUpload={() => setIsVideoUploaded(true)} />
+
       {/* PoseAnalysisComponent는 시각적 요소가 아니므로 zIndex가 필요 없습니다. */}
       <PoseAnalysisComponent 
         modelPath="./yolov11_pose_dog.onnx"

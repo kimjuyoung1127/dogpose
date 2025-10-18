@@ -72,7 +72,7 @@ const PoseAnalysisComponent = ({ modelPath, videoRef, canvasRef, onAnalysisCompl
         
         if (keypoints.length > 0) {
           allKeypoints.push(keypoints);
-          drawSkeleton(ctx, keypoints, video.videoWidth, video.videoHeight);
+          drawSkeleton(ctx, keypoints, video, canvas);
         }
 
         animationFrameId.current = requestAnimationFrame(runAnalysis);
@@ -283,8 +283,29 @@ function calculateSpineCurvature(keypointsData) {
  * @param {number} width 
  * @param {number} height 
  */
-function drawSkeleton(ctx, keypoints, width, height) {
-  ctx.clearRect(0, 0, width, height);
+function drawSkeleton(ctx, keypoints, video, canvas) {
+  // 1. 캔버스의 실제 크기와 드로잉 해상도를 일치시킵니다 (왜곡 방지).
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 2. 비디오와 캔버스의 비율을 계산하여 스케일 및 오프셋을 결정합니다.
+  //    (object-fit: cover 와 동일한 효과)
+  const videoRatio = video.videoWidth / video.videoHeight;
+  const canvasRatio = canvas.width / canvas.height;
+  let scale = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (videoRatio > canvasRatio) { // 비디오가 캔버스보다 가로로 넓은 경우
+    scale = canvas.height / video.videoHeight;
+    offsetX = (canvas.width - video.videoWidth * scale) / 2;
+  } else { // 비디오가 캔버스보다 세로로 길거나 같은 경우
+    scale = canvas.width / video.videoWidth;
+    offsetY = (canvas.height - video.videoHeight * scale) / 2;
+  }
+
   const connections = [
     [0, 1], [0, 2], [1, 3], [2, 4], // Head
     [5, 6], [5, 7], [7, 9], [6, 8], [8, 10], // Body and front legs
@@ -292,27 +313,33 @@ function drawSkeleton(ctx, keypoints, width, height) {
   ];
 
   for (const dog of keypoints) {
-    // Draw keypoints
+    // 3. 스케일과 오프셋을 적용하여 점을 그립니다.
     ctx.fillStyle = '#FF0000';
-    for (let i = 0; i < dog.length; i++) {
-      const point = dog[i];
+    for (const point of dog) {
       if (point.confidence > 0.5) {
+        const scaledX = point.x * scale + offsetX;
+        const scaledY = point.y * scale + offsetY;
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+        ctx.arc(scaledX, scaledY, 5, 0, 2 * Math.PI);
         ctx.fill();
       }
     }
 
-    // Draw connections
+    // 4. 스케일과 오프셋을 적용하여 선을 그립니다.
     ctx.strokeStyle = '#00FF00';
     ctx.lineWidth = 3;
     for (const [start, end] of connections) {
       const startPoint = dog[start];
       const endPoint = dog[end];
       if (startPoint && endPoint && startPoint.confidence > 0.5 && endPoint.confidence > 0.5) {
+        const startX = startPoint.x * scale + offsetX;
+        const startY = startPoint.y * scale + offsetY;
+        const endX = endPoint.x * scale + offsetX;
+        const endY = endPoint.y * scale + offsetY;
+        
         ctx.beginPath();
-        ctx.moveTo(startPoint.x, startPoint.y);
-        ctx.lineTo(endPoint.x, endPoint.y);
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
         ctx.stroke();
       }
     }
