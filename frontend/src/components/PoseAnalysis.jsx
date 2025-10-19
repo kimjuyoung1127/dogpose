@@ -163,7 +163,7 @@ function postprocess(results, newWidth, newHeight, padX, padY, originalWidth, or
         // Transposed 데이터 접근 방식: i번째 예측의 5번째 속성(객체 신뢰도)을 가져옵니다.
         const classConfidence = data[i + 4 * numPredictions]; 
 
-        if (classConfidence > 0.8) { // 임계값은 0.6으로 약간 높여 안정성 확보
+        if (classConfidence > 0.6) { // 임계값은 0.6으로 약간 높여 안정성 확보
             const dogKeypoints = [];
             for (let j = 0; j < numKeypoints; j++) {
                 // keypoint 데이터는 5번 인덱스부터 시작합니다.
@@ -277,40 +277,77 @@ function drawSkeleton(ctx, keypoints, video, canvas) {
         offsetY = (canvas.height - video.videoHeight * scale) / 2;
     }
 
-    // ★★★ 24개 관절에 대한 연결 정보 (추정) ★★★
-    // 이 순서는 모델마다 다를 수 있으므로, 결과가 이상하면 이 배열의 숫자를 바꿔보며 테스트해야 합니다.
+    // Define left and right side keypoint mappings based on analysis of discovery.png
+    // Note: These mappings are approximated from visual analysis of the discovery image
+    const leftSideKeypoints = [3, 4, 5, 9, 10, 18]; // Left limbs and features
+    const rightSideKeypoints = [6, 7, 8, 1, 2, 19];  // Right limbs and features
+    const centerKeypoints = [0, 11, 12, 13, 14, 15, 16, 17]; // Central body parts
+
+    // Define symmetric connections for both left and right sides
     const connections = [
-        [0, 1], [0, 2], [1, 3], [2, 4],   // 머리 (0:코, 1:왼쪽눈, 2:오른쪽눈, 3:왼쪽귀, 4:오른쪽귀)
-        [5, 6], [11, 12], [5, 11], [6, 12], // 몸통 (5:왼쪽어깨, 6:오른쪽어깨, 11:왼쪽엉덩이, 12:오른쪽엉덩이)
-        [5, 7], [7, 9], [9, 21],          // 왼 앞다리 (7:팔꿈치, 9:손목, 21:발)
-        [6, 8], [8, 10], [10, 22],         // 오른 앞다리
-        [11, 13], [13, 15], [15, 17],      // 왼 뒷다리 (13:무릎, 15:발목, 17:발)
-        [12, 14], [14, 16], [16, 18],      // 오른 뒷다리
-        [11, 19], [12, 19]                // 꼬리 시작점 (19번 관절 추정)
+        // Spine structure (center)
+        [13, 12], // Nose to neck area
+        [12, 11], // Neck to center shoulder
+        [11, 0],  // Center shoulder to tail base
+
+        // Left side - mirrors right side
+        [12, 3],  // Neck to left ear
+        [11, 4],  // Center shoulder to left front leg top
+        [4, 5],   // Left front leg
+        [0, 9],   // Tail base to left hip
+        [9, 10],  // Left hind leg
+
+        // Right side - mirrors left side  
+        [12, 18], // Neck to right ear
+        [11, 6],  // Center shoulder to right front leg top
+        [6, 7],   // Right front leg
+        [0, 1],   // Tail base to right hip
+        [1, 2],   // Right hind leg
+
+        // Additional connections to complete the skeleton
+        [13, 17], // Nose to top of head
+        [17, 3],  // Top of head to left ear
+        [17, 18], // Top of head to right ear
     ];
 
     for (const dog of keypoints) {
-        // 점 그리기 (Keypoints)
-        ctx.fillStyle = '#FF00FF';
-        dog.forEach(point => {
-            if (point.confidence > 0.5) {
+        // --- Draw keypoints with different colors for left/right/center ---
+        dog.forEach((point, index) => {
+            if (point && point.confidence > 0.3) {
                 const scaledX = point.x * scale + offsetX;
                 const scaledY = point.y * scale + offsetY;
+                
+                // Different colors for left/right/center for better visualization
+                if (leftSideKeypoints.includes(index)) {
+                    ctx.fillStyle = '#FF69B4'; // Pink for left side
+                } else if (rightSideKeypoints.includes(index)) {
+                    ctx.fillStyle = '#00BFFF'; // Blue for right side
+                } else {
+                    ctx.fillStyle = '#32CD32'; // Green for center
+                }
+                
                 ctx.beginPath();
-                ctx.arc(scaledX, scaledY, 5, 0, 2 * Math.PI);
+                ctx.arc(scaledX, scaledY, 6, 0, 2 * Math.PI);
                 ctx.fill();
+                
+                // Draw the index number next to the point
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = '10px Arial';
+                ctx.fillText(`${index}`, scaledX + 8, scaledY - 8);
             }
         });
-        
-        // 선 그리기 (Connections)
-        ctx.strokeStyle = '#00FF00';
-        ctx.lineWidth = 3;
+
+        // --- Draw connections between keypoints ---
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
         connections.forEach(([start, end]) => {
-            if (dog[start] && dog[end] && dog[start].confidence > 0.5 && dog[end].confidence > 0.5) {
-                const startX = dog[start].x * scale + offsetX;
-                const startY = dog[start].y * scale + offsetY;
-                const endX = dog[end].x * scale + offsetX;
-                const endY = dog[end].y * scale + offsetY;
+            const startPoint = dog[start];
+            const endPoint = dog[end];
+            if (startPoint && endPoint && startPoint.confidence > 0.3 && endPoint.confidence > 0.3) {
+                const startX = startPoint.x * scale + offsetX;
+                const startY = startPoint.y * scale + offsetY;
+                const endX = endPoint.x * scale + offsetX;
+                const endY = endPoint.y * scale + offsetY;
                 
                 ctx.beginPath();
                 ctx.moveTo(startX, startY);

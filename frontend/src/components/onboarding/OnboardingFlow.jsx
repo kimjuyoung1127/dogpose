@@ -28,58 +28,46 @@ const OnboardingFlow = ({ onComplete }) => {
 
   // Effect to handle webcam stream
   useEffect(() => {
-    if (isVideoUploaded) return; // Don't get webcam if a video is uploaded
-
-    let stream = null;
-
-    const getWebcam = async () => {
-      // Stop any existing stream first
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
-      }
-
-      if (currentStep === 1 || currentStep === 2) { // Only get webcam for steps that need it
+    const enableWebcam = async () => {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            
-            // Wait for the video to be loaded and then play it
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current.play().catch(e => console.log("Video play error:", e));
-            };
-            
-            // Also try to play immediately
-            if (videoRef.current.readyState >= 2) { // HAVE_CURRENT_DATA
-              videoRef.current.play().catch(e => console.log("Video play error:", e));
+            // Don't start a new stream if one is already active
+            if (videoRef.current && videoRef.current.srcObject) {
+                return;
             }
-          }
-          setCameraPermission('granted');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(e => console.log("Video play error:", e));
+            }
+            setCameraPermission('granted');
         } catch (err) {
-          console.error('Error accessing webcam:', err);
-          setCameraPermission('denied');
+            console.error('Error accessing webcam:', err);
+            setCameraPermission('denied');
         }
-      } else {
-        // Stop the stream when moving past webcam steps
+    };
+
+    const disableWebcam = () => {
         if (videoRef.current && videoRef.current.srcObject) {
-          const tracks = videoRef.current.srcObject.getTracks();
-          tracks.forEach(track => track.stop());
-          videoRef.current.srcObject = null;
+            videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
         }
-      }
     };
 
-    getWebcam();
+    if (isVideoUploaded) {
+        disableWebcam();
+        return;
+    }
 
-    // Cleanup function to stop the stream when component unmounts
+    if (currentStep === 1 || currentStep === 2) {
+        enableWebcam();
+    } else {
+        disableWebcam();
+    }
+
+    // Only run cleanup when the component unmounts
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
-      }
-    };
+        disableWebcam();
+    }
   }, [currentStep, isVideoUploaded]);
 
   useEffect(() => {
@@ -161,7 +149,6 @@ const OnboardingFlow = ({ onComplete }) => {
           left: 0, 
           width: '100%', 
           height: '100%', 
-          transform: 'scaleX(-1)',
           objectFit: 'contain',
           zIndex: 0, // 비디오는 맨 뒤에 위치
         }} 
