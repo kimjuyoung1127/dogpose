@@ -31,7 +31,25 @@ self.addEventListener('fetch', (event) => {
         if (response) {
           return response;
         }
-        return fetch(event.request);
+        // Clone the request to handle it properly
+        return fetch(event.request.clone())
+          .then((networkResponse) => {
+            // If the response is valid, clone it and add it to the cache
+            if (networkResponse && networkResponse.status === 200) {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME)
+                .then((cache) => {
+                  cache.put(event.request, responseToCache);
+                });
+            }
+            return networkResponse;
+          })
+          .catch((error) => {
+            // In case of network error, try to return something appropriate
+            console.error('Fetch failed:', error);
+            // For assets that are missing, return a fallback or just let it fail normally
+            return fetch(event.request);
+          });
       }
     )
   );

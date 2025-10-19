@@ -129,3 +129,29 @@ enhanced real-time capabilities by moving AI processing to the client
 browser. The frontend specifically implements all features specified in
 frontui.md, including the "Zero Friction, Maximum Delight" design philosophy
 and the complete user journey from landing to workout completion.
+
+### Key Component Breakdown
+
+**`OnboardingFlow.jsx`**
+-   **Role:** Manages the entire 3-step user onboarding process.
+-   **State Management:**
+    -   `currentStep`: Controls which step is displayed (`WebcamSetupStep`, `SkeletonDetectionStep`, `ExerciseSelectionStep`).
+    -   `cameraPermission`: Tracks the status of webcam access ('granted', 'denied', null).
+    -   `isAnalyzing`: A boolean passed to `PoseAnalysisComponent` to activate/deactivate the ONNX model inference.
+    -   `isVideoUploaded`: A flag to switch between webcam input and a pre-recorded video for debugging.
+-   **Refs:**
+    -   `videoRef`: A reference to the `<video>` element.
+    -   `canvasRef`: A reference to the `<canvas>` element used for drawing the skeleton.
+-   **Interaction:** Passes the `videoRef` and `canvasRef` down to `PoseAnalysisComponent` and controls its execution via the `isAnalyzing` prop.
+
+**`PoseAnalysis.jsx`**
+-   **Role:** The core of the real-time analysis. This is a non-visual component that encapsulates all ONNX runtime logic.
+-   **Props:**
+    -   `modelPath`: Path to the `.onnx` model file.
+    -   `videoRef`: Reference to the video element to process.
+    -   `canvasRef`: Reference to the canvas element to draw on.
+    -   `isAnalyzing`: Prop to start or stop the analysis loop.
+-   **Core Functions:**
+    -   **`preprocess()`**: Takes a video frame, resizes it to the model's required input size (640x640), and converts it into a tensor.
+    -   **`postprocess()`**: Takes the raw output from the ONNX model, interprets the data array (using a 'Transposed' access pattern), finds the most confident prediction, and extracts the 24 keypoint coordinates.
+    -   **`drawSkeleton()`**: The main visualization function. It takes the processed keypoints and draws them onto the canvas. It contains the `connections` array that defines the skeleton's structure and logic to skip drawing certain points for clarity.

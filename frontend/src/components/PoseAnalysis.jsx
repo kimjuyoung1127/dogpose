@@ -260,11 +260,21 @@ function calculateSpineCurvature(keypointsData) {
  * @param {number} width 
  * @param {number} height 
  */
+/**
+ * Draws the detected skeleton on the canvas, correctly scaling it to fit.
+ * @param {CanvasRenderingContext2D} ctx 
+ * @param {Array} keypoints 
+ * @param {HTMLVideoElement} video
+ * @param {HTMLCanvasElement} canvas
+ */
 function drawSkeleton(ctx, keypoints, video, canvas) {
+    // 1. Match canvas resolution to its display size (prevents distortion)
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // 2. Calculate the scale and offset to fit the video inside the canvas
     const videoRatio = video.videoWidth / video.videoHeight;
     const canvasRatio = canvas.width / canvas.height;
     let scale = 1, offsetX = 0, offsetY = 0;
@@ -277,67 +287,41 @@ function drawSkeleton(ctx, keypoints, video, canvas) {
         offsetY = (canvas.height - video.videoHeight * scale) / 2;
     }
 
-    // Define left and right side keypoint mappings based on analysis of discovery.png
-    // Note: These mappings are approximated from visual analysis of the discovery image
-    const leftSideKeypoints = [3, 4, 5, 9, 10, 18]; // Left limbs and features
-    const rightSideKeypoints = [6, 7, 8, 1, 2, 19];  // Right limbs and features
-    const centerKeypoints = [0, 11, 12, 13, 14, 15, 16, 17]; // Central body parts
-
-    // Define symmetric connections for both left and right sides
+    // Your keypoint mappings and connections
+    const leftSideKeypoints = [3, 4, 5, 9, 10, 18];
+    const rightSideKeypoints = [6, 7, 8, 1, 2, 19];
+    const centerKeypoints = [0, 11, 12, 13, 14, 15, 16, 17];
     const connections = [
-        // Spine structure (center)
-        [13, 12], // Nose to neck area
-        [12, 11], // Neck to center shoulder
-        [11, 0],  // Center shoulder to tail base
-
-        // Left side - mirrors right side
-        [12, 3],  // Neck to left ear
-        [11, 4],  // Center shoulder to left front leg top
-        [4, 5],   // Left front leg
-        [0, 9],   // Tail base to left hip
-        [9, 10],  // Left hind leg
-
-        // Right side - mirrors left side  
-        [12, 18], // Neck to right ear
-        [11, 6],  // Center shoulder to right front leg top
-        [6, 7],   // Right front leg
-        [0, 1],   // Tail base to right hip
-        [1, 2],   // Right hind leg
-
-        // Additional connections to complete the skeleton
-        [13, 17], // Nose to top of head
-        [17, 3],  // Top of head to left ear
-        [17, 18], // Top of head to right ear
+        [13, 12], [12, 11], [11, 0], [12, 3], [11, 4], [4, 5], [0, 9], [9, 10],
+        [12, 18], [11, 6], [6, 7], [0, 1], [1, 2], [13, 17], [17, 3], [17, 18]
     ];
 
     for (const dog of keypoints) {
-        // --- Draw keypoints with different colors for left/right/center ---
+        // 3. Draw keypoints with the calculated scale and offset
         dog.forEach((point, index) => {
             if (point && point.confidence > 0.3) {
                 const scaledX = point.x * scale + offsetX;
                 const scaledY = point.y * scale + offsetY;
                 
-                // Different colors for left/right/center for better visualization
                 if (leftSideKeypoints.includes(index)) {
-                    ctx.fillStyle = '#FF69B4'; // Pink for left side
+                    ctx.fillStyle = '#FF69B4'; // Pink
                 } else if (rightSideKeypoints.includes(index)) {
-                    ctx.fillStyle = '#00BFFF'; // Blue for right side
+                    ctx.fillStyle = '#00BFFF'; // Blue
                 } else {
-                    ctx.fillStyle = '#32CD32'; // Green for center
+                    ctx.fillStyle = '#32CD32'; // Green
                 }
                 
                 ctx.beginPath();
                 ctx.arc(scaledX, scaledY, 6, 0, 2 * Math.PI);
                 ctx.fill();
                 
-                // Draw the index number next to the point
                 ctx.fillStyle = '#FFFFFF';
                 ctx.font = '10px Arial';
                 ctx.fillText(`${index}`, scaledX + 8, scaledY - 8);
             }
         });
 
-        // --- Draw connections between keypoints ---
+        // 4. Draw connections with the calculated scale and offset
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 2;
         connections.forEach(([start, end]) => {

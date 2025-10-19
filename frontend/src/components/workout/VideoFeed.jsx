@@ -1,19 +1,20 @@
 import React from 'react';
-import Webcam from 'react-webcam';
 
 const VideoFeed = ({ poseAccuracy, videoRef, canvasRef }) => {
   return (
-    <div className="relative w-full h-full">
-      <Webcam
-        audio={false}
-        className="w-full h-full object-cover"
+    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden shadow-lg">
+      <video
         ref={videoRef}
+        className="absolute top-0 left-0 w-full h-full object-contain"
+        playsInline
+        muted
+        autoPlay
       />
       
       {/* Skeleton Overlay Canvas */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 pointer-events-none w-full h-full"
+        className="absolute top-0 left-0 w-full h-full"
       />
       
       {/* Pose Accuracy Feedback */}
